@@ -14,7 +14,7 @@ namespace HKMP.Timer
 
         protected override string Name => "HKMP.Timer";
 
-        protected override string Version => "1.0.0.0";
+        protected override string Version => "1.1.0.0";
 
         private IClientAddonNetworkSender<TimerServerPacketId> _sender;
 

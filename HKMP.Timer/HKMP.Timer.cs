@@ -30,7 +30,7 @@ namespace HKMP.Timer
 
         public override string GetVersion()
         {
-            return "1.0.0.0";
+            return "1.1.0.0";
         }
 
         public override List<(string, string)> GetPreloadNames()
@@ -79,6 +79,12 @@ namespace HKMP.Timer
         {
             TimerInputActions.Initialize();
 
+            if (GlobalSettings == null)
+            {
+                GlobalSettings =
+                    new TimerGlobalSettings();
+            }
+
             if (_menu == null)
             {
                 _menu =
@@ -87,28 +93,41 @@ namespace HKMP.Timer
                         new Element[]
                         {
                             new TextPanel(
-                                "Настройки таймера",
+                                "Timer Settings",
                                 fontSize: 32
                             ),
 
+                            new HorizontalOption(
+                                "Stopwatch Mode",
+                                "Count up instead of counting down.",
+                                new[]
+                                {
+                                    "Off",
+                                    "On"
+                                },
+                                SetStopwatchEnabled,
+                                GetStopwatchSetting,
+                                "StopwatchMode"
+                            ),
+
                             new KeyBind(
-                                "Клавиша таймера",
+                                "Timer Key",
                                 TimerInputActions.Timer
                             ),
 
                             new TextPanel(
-                                "Цвет таймера",
+                                "Timer Color",
                                 fontSize: 28
                             ),
 
                             new StaticPanel(
-                                "Палитра",
+                                "Palette",
                                 CreateColorPalette
                             ),
 
                             new TextPanel(
-                                "Для изменения положения и размера " +
-                                "удерживайте клавишу таймера в игре.",
+                                "To change the position and size " +
+                                "hold the timer key in-game.",
                                 fontSize: 18
                             )
                         }
@@ -118,6 +137,28 @@ namespace HKMP.Timer
             return _menu.GetMenuScreen(
                 modListMenu
             );
+        }
+
+        private void SetStopwatchEnabled(
+            int value)
+        {
+            if (GlobalSettings == null)
+            {
+                GlobalSettings =
+                    new TimerGlobalSettings();
+            }
+
+            GlobalSettings.StopwatchEnabled =
+                value == 1;
+        }
+
+        private int GetStopwatchSetting()
+        {
+            return
+                GlobalSettings != null &&
+                GlobalSettings.StopwatchEnabled
+                    ? 1
+                    : 0;
         }
 
         private void CreateColorPalette(
@@ -231,12 +272,6 @@ namespace HKMP.Timer
                     52f
                 );
 
-            /*
-             * Внешний круг.
-             *
-             * Он отвечает только за толстую обводку
-             * выбранного цвета.
-             */
             GameObject borderObject =
                 new GameObject(
                     "Border"
@@ -290,13 +325,6 @@ namespace HKMP.Timer
             borderImage.raycastTarget =
                 false;
 
-            /*
-             * Сам цветной круг находится поверх
-             * белой обводки и чуть меньше неё.
-             *
-             * Благодаря этому получается настоящий
-             * толстый контур.
-             */
             GameObject colorObject =
                 new GameObject(
                     "Color"
@@ -352,10 +380,6 @@ namespace HKMP.Timer
             colorImage.raycastTarget =
                 true;
 
-            /*
-             * Кнопка располагается поверх визуальных
-             * элементов, но сама прозрачная.
-             */
             Button button =
                 buttonObject.AddComponent<Button>();
 
@@ -497,12 +521,6 @@ namespace HKMP.Timer
                 return;
             }
 
-            /*
-             * Выбранный цвет получает толстую белую
-             * обводку.
-             *
-             * Невыбранный цвет полностью убирает её.
-             */
             border.gameObject.SetActive(
                 GlobalSettings.TimerColor ==
                 colorIndex
@@ -647,3 +665,4 @@ namespace HKMP.Timer
         }
     }
 }
+

@@ -4,6 +4,7 @@ using Hkmp.Logging;
 using Hkmp.Networking.Packet;
 using HkmpTimer;
 using System;
+using UnityEngine;
 
 namespace HKMP.Timer
 {
@@ -11,7 +12,7 @@ namespace HKMP.Timer
     {
         private readonly TimerServerAddon _addon;
         private readonly IServerApi _serverApi;
-        private readonly ILogger _logger;
+        private readonly Hkmp.Logging.ILogger _logger;
 
         private readonly
             IServerAddonNetworkSender<TimerClientPacketId>
@@ -25,19 +26,46 @@ namespace HKMP.Timer
 
         private long _remainingMilliseconds;
 
+        private long _elapsedMilliseconds;
+
         private long _startUtcTicks;
 
         private bool _running;
 
         private bool _expired;
 
+        private bool _stopwatchMode;
+
+        private bool _roundControlActive;
+
+        private uint _roundControlRoundId;
+
+        private GameObject _tickGameObject;
+
+        private static TimerServerManager _instance;
+
+        private static Action<uint> _roundExpirationHandler;
+
+        public static TimerServerManager Instance
+        {
+            get
+            {
+                return _instance;
+            }
+        }
+
         public TimerServerManager(
             TimerServerAddon addon,
             IServerApi serverApi)
         {
-            _addon = addon;
+            _addon =
+                addon;
 
-            _serverApi = serverApi;
+            _serverApi =
+                serverApi;
+
+            _instance =
+                this;
 
             _logger =
                 addon.Logger;
@@ -70,7 +98,9 @@ namespace HKMP.Timer
             );
 
             _serverApi.CommandManager.RegisterCommand(
-                new TimerCommand(this)
+                new TimerCommand(
+                    this
+                )
             );
 
             _serverApi.ServerManager.PlayerConnectEvent +=
@@ -83,6 +113,8 @@ namespace HKMP.Timer
             _logger.Info(
                 "HKMP.Timer command registered: /timer"
             );
+
+            EnsureTickBehaviour();
         }
 
         private void OnPlayerConnect(
@@ -95,6 +127,8 @@ namespace HKMP.Timer
 
             try
             {
+                NormalizeExpired();
+
                 SendStateToPlayer(
                     player.Id
                 );
@@ -160,7 +194,45 @@ namespace HKMP.Timer
             if (_running)
             {
                 sendMessage?.Invoke(
-                    "Таймер уже запущен."
+                    _stopwatchMode
+                        ? "Stopwatch is already running."
+                        : "Timer is already running."
+                );
+
+                return;
+            }
+
+            bool stopwatchMode =
+                IsStopwatchEnabled();
+
+            if (stopwatchMode)
+            {
+                _stopwatchMode =
+                    true;
+
+                _running =
+                    true;
+
+                _expired =
+                    false;
+
+                _elapsedMilliseconds =
+                    0;
+
+                _remainingMilliseconds =
+                    0;
+
+                _startUtcTicks =
+                    DateTime.UtcNow.Ticks;
+
+                BroadcastState();
+
+                sendMessage?.Invoke(
+                    "Stopwatch started."
+                );
+
+                _logger.Info(
+                    "Stopwatch started."
                 );
 
                 return;
@@ -169,11 +241,14 @@ namespace HKMP.Timer
             if (_durationSeconds <= 0)
             {
                 sendMessage?.Invoke(
-                    "Сначала задайте время больше 0."
+                    "Please set a duration greater than 0 first."
                 );
 
                 return;
             }
+
+            _stopwatchMode =
+                false;
 
             if (_remainingMilliseconds <= 0)
             {
@@ -192,13 +267,12 @@ namespace HKMP.Timer
 
             if (elapsedMilliseconds < 0)
             {
-                elapsedMilliseconds = 0;
+                elapsedMilliseconds =
+                    0;
             }
 
-            if (
-                elapsedMilliseconds >
-                durationMilliseconds
-            )
+            if (elapsedMilliseconds >
+                durationMilliseconds)
             {
                 elapsedMilliseconds =
                     durationMilliseconds;
@@ -209,14 +283,16 @@ namespace HKMP.Timer
                 elapsedMilliseconds *
                 TimeSpan.TicksPerMillisecond;
 
-            _running = true;
+            _running =
+                true;
 
-            _expired = false;
+            _expired =
+                false;
 
             BroadcastState();
 
             sendMessage?.Invoke(
-                "Таймер запущен: " +
+                "Timer started: " +
                 FormatMilliseconds(
                     _remainingMilliseconds
                 )
@@ -235,7 +311,9 @@ namespace HKMP.Timer
             if (!_running)
             {
                 sendMessage?.Invoke(
-                    "Таймер уже остановлен."
+                    _stopwatchMode
+                        ? "Stopwatch is already stopped."
+                        : "Timer is already stopped."
                 );
 
                 BroadcastState();
@@ -243,24 +321,41 @@ namespace HKMP.Timer
                 return;
             }
 
-            _remainingMilliseconds =
-                CalculateRemainingMilliseconds();
+            if (_stopwatchMode)
+            {
+                _elapsedMilliseconds =
+                    GetElapsedMilliseconds();
+            }
+            else
+            {
+                _remainingMilliseconds =
+                    CalculateRemainingMilliseconds();
+            }
 
-            _running = false;
+            _running =
+                false;
 
-            _startUtcTicks = 0;
+            _startUtcTicks =
+                0;
 
             BroadcastState();
 
             sendMessage?.Invoke(
-                "Таймер остановлен на " +
-                FormatMilliseconds(
-                    _remainingMilliseconds
-                )
+                _stopwatchMode
+                    ? "Stopwatch stopped at " +
+                      FormatMilliseconds(
+                          _elapsedMilliseconds
+                      )
+                    : "Timer stopped at " +
+                      FormatMilliseconds(
+                          _remainingMilliseconds
+                      )
             );
 
             _logger.Info(
-                "Timer stopped."
+                _stopwatchMode
+                    ? "Stopwatch stopped."
+                    : "Timer stopped."
             );
         }
 
@@ -270,10 +365,30 @@ namespace HKMP.Timer
         {
             NormalizeExpired();
 
+            if ((_running &&
+                 _stopwatchMode) ||
+                IsStopwatchEnabled())
+            {
+                sendMessage?.Invoke(
+                    "Setting duration is unavailable while in stopwatch mode."
+                );
+
+                return;
+            }
+
             if (seconds < 0)
             {
                 sendMessage?.Invoke(
-                    "Время не может быть отрицательным."
+                    "Duration cannot be negative."
+                );
+
+                return;
+            }
+
+            if (_roundControlActive)
+            {
+                sendMessage?.Invoke(
+                    "Duration is controlled by HKMP.Rounds integration during active matches."
                 );
 
                 return;
@@ -286,27 +401,34 @@ namespace HKMP.Timer
                 (long)seconds *
                 1000L;
 
-            _expired = false;
+            _elapsedMilliseconds =
+                0;
 
-            if (
-                _running &&
-                seconds > 0
-            )
+            _stopwatchMode =
+                false;
+
+            _expired =
+                false;
+
+            if (_running &&
+                seconds > 0)
             {
                 _startUtcTicks =
                     DateTime.UtcNow.Ticks;
             }
             else
             {
-                _running = false;
+                _running =
+                    false;
 
-                _startUtcTicks = 0;
+                _startUtcTicks =
+                    0;
             }
 
             BroadcastState();
 
             sendMessage?.Invoke(
-                "Таймер установлен на " +
+                "Timer duration changed to " +
                 FormatMilliseconds(
                     _remainingMilliseconds
                 )
@@ -323,36 +445,190 @@ namespace HKMP.Timer
         {
             NormalizeExpired();
 
+            if (_stopwatchMode)
+            {
+                long elapsed =
+                    GetElapsedMilliseconds();
+
+                return
+                    "Stopwatch: " +
+                    FormatMilliseconds(
+                        elapsed
+                    ) +
+                    (
+                        _running
+                            ? " (running)"
+                            : " (stopped)"
+                    );
+            }
+
             long remaining =
                 GetRemainingMilliseconds();
 
             if (_expired)
             {
                 return
-                    "Таймер: ВРЕМЯ ВЫШЛО";
+                    "Timer: TIME IS UP";
             }
 
             if (_running)
             {
                 return
-                    "Таймер: " +
+                    "Timer: " +
                     FormatMilliseconds(
                         remaining
                     ) +
-                    " (запущен)";
+                    " (running)";
             }
 
             return
-                "Таймер: " +
+                "Timer: " +
                 FormatMilliseconds(
                     remaining
                 ) +
-                " (остановлен)";
+                " (stopped)";
+        }
+
+        public static void SetRoundExpirationHandler(
+            Action<uint> handler)
+        {
+            _roundExpirationHandler =
+                handler;
+        }
+
+        public bool StartForRound(
+            uint roundId)
+        {
+            if (roundId == 0 ||
+                _running)
+            {
+                return false;
+            }
+
+            bool stopwatchMode =
+                IsStopwatchEnabled();
+
+            if (!stopwatchMode &&
+                _durationSeconds <= 0)
+            {
+                return false;
+            }
+
+            _stopwatchMode =
+                stopwatchMode;
+
+            _running =
+                true;
+
+            _expired =
+                false;
+
+            _roundControlActive =
+                true;
+
+            _roundControlRoundId =
+                roundId;
+
+            _startUtcTicks =
+                DateTime.UtcNow.Ticks;
+
+            _elapsedMilliseconds =
+                0;
+
+            _remainingMilliseconds =
+                stopwatchMode
+                    ? 0L
+                    : (long)_durationSeconds *
+                      1000L;
+
+            BroadcastState();
+
+            _logger.Info(
+                stopwatchMode
+                    ? "Round stopwatch started for round " +
+                      roundId +
+                      "."
+                    : "Round timer started for round " +
+                      roundId +
+                      " with duration " +
+                      _durationSeconds +
+                      " seconds."
+            );
+
+            return true;
+        }
+
+        public bool EndForRound(
+            uint roundId)
+        {
+            if (!_roundControlActive ||
+                _roundControlRoundId != roundId)
+            {
+                return false;
+            }
+
+            if (_stopwatchMode &&
+                _running)
+            {
+                _elapsedMilliseconds =
+                    GetElapsedMilliseconds();
+            }
+            else if (!_stopwatchMode &&
+                     _running)
+            {
+                _remainingMilliseconds =
+                    CalculateRemainingMilliseconds();
+            }
+
+            _running =
+                false;
+
+            _startUtcTicks =
+                0;
+
+            _roundControlActive =
+                false;
+
+            _roundControlRoundId =
+                0;
+
+            BroadcastState();
+
+            if (_stopwatchMode)
+            {
+                _serverApi.ServerManager.BroadcastMessage(
+                    "Round duration: " +
+                    FormatMilliseconds(
+                        _elapsedMilliseconds
+                    )
+                );
+
+                _logger.Info(
+                    "Round stopwatch ended for round " +
+                    roundId +
+                    ": " +
+                    FormatMilliseconds(
+                        _elapsedMilliseconds
+                    ) +
+                    "."
+                );
+            }
+            else
+            {
+                _logger.Info(
+                    "Round timer stopped for round " +
+                    roundId +
+                    "."
+                );
+            }
+
+            return true;
         }
 
         private long GetRemainingMilliseconds()
         {
-            if (!_running)
+            if (!_running ||
+                _stopwatchMode)
             {
                 return Math.Max(
                     0L,
@@ -363,9 +639,39 @@ namespace HKMP.Timer
             return CalculateRemainingMilliseconds();
         }
 
+        private long GetElapsedMilliseconds()
+        {
+            if (!_stopwatchMode)
+            {
+                return 0L;
+            }
+
+            if (!_running)
+            {
+                return Math.Max(
+                    0L,
+                    _elapsedMilliseconds
+                );
+            }
+
+            long elapsedTicks =
+                DateTime.UtcNow.Ticks -
+                _startUtcTicks;
+
+            if (elapsedTicks <= 0)
+            {
+                return 0L;
+            }
+
+            return
+                elapsedTicks /
+                TimeSpan.TicksPerMillisecond;
+        }
+
         private long CalculateRemainingMilliseconds()
         {
-            if (!_running)
+            if (!_running ||
+                _stopwatchMode)
             {
                 return Math.Max(
                     0L,
@@ -392,9 +698,100 @@ namespace HKMP.Timer
                 TimeSpan.TicksPerMillisecond;
         }
 
+        private bool IsStopwatchEnabled()
+        {
+            return
+                TimerMod.GlobalSettings != null &&
+                TimerMod.GlobalSettings.StopwatchEnabled;
+        }
+
+        private void Tick()
+        {
+            if (!_running ||
+                _stopwatchMode)
+            {
+                return;
+            }
+
+            long remaining =
+                CalculateRemainingMilliseconds();
+
+            _remainingMilliseconds =
+                remaining;
+
+            if (remaining > 0)
+            {
+                return;
+            }
+
+            _running =
+                false;
+
+            _remainingMilliseconds =
+                0;
+
+            _startUtcTicks =
+                0;
+
+            _expired =
+                true;
+
+            bool roundControlled =
+                _roundControlActive;
+
+            uint roundId =
+                _roundControlRoundId;
+
+            _roundControlActive =
+                false;
+
+            _roundControlRoundId =
+                0;
+
+            BroadcastState();
+
+            _logger.Info(
+                roundControlled
+                    ? "Round timer expired for round " +
+                      roundId +
+                      "."
+                    : "Timer reached zero."
+            );
+
+            if (roundControlled)
+            {
+                Action<uint> handler =
+                    _roundExpirationHandler;
+
+                if (handler != null)
+                {
+                    try
+                    {
+                        handler(
+                            roundId
+                        );
+                    }
+                    catch (Exception exception)
+                    {
+                        _logger.Warn(
+                            "Round expiration handler failed: " +
+                            exception.Message
+                        );
+                    }
+                }
+
+                return;
+            }
+
+            _serverApi.ServerManager.BroadcastMessage(
+                "Time's up."
+            );
+        }
+
         private void NormalizeExpired()
         {
-            if (!_running)
+            if (!_running ||
+                _stopwatchMode)
             {
                 return;
             }
@@ -404,20 +801,7 @@ namespace HKMP.Timer
 
             if (remaining <= 0)
             {
-                _running = false;
-
-                _remainingMilliseconds = 0;
-
-                _startUtcTicks = 0;
-
-                _expired = true;
-
-                BroadcastState();
-
-                _logger.Info(
-                    "Timer reached zero."
-                );
-
+                Tick();
                 return;
             }
 
@@ -427,11 +811,6 @@ namespace HKMP.Timer
 
         private TimerStatePacket CreateStatePacket()
         {
-            if (_running)
-            {
-                NormalizeExpired();
-            }
-
             return new TimerStatePacket
             {
                 Running =
@@ -450,7 +829,13 @@ namespace HKMP.Timer
                     DateTime.UtcNow.Ticks,
 
                 Expired =
-                    _expired
+                    _expired,
+
+                StopwatchMode =
+                    _stopwatchMode,
+
+                ElapsedMilliseconds =
+                    GetElapsedMilliseconds()
             };
         }
 
@@ -460,10 +845,14 @@ namespace HKMP.Timer
                 CreateStatePacket();
 
             foreach (
-                var player
-                in _serverApi.ServerManager.Players
-            )
+                IServerPlayer player
+                in _serverApi.ServerManager.Players)
             {
+                if (player == null)
+                {
+                    continue;
+                }
+
                 try
                 {
                     _sender.SendSingleData(
@@ -480,6 +869,71 @@ namespace HKMP.Timer
                         ": " +
                         ex.Message
                     );
+                }
+            }
+        }
+
+        private void EnsureTickBehaviour()
+        {
+            if (_tickGameObject != null)
+            {
+                return;
+            }
+
+            GameObject gameObject =
+                new GameObject(
+                    "HKMP.Timer.ServerTick"
+                );
+
+            UnityEngine.Object.DontDestroyOnLoad(
+            gameObject
+            );
+
+            _tickGameObject =
+                gameObject;
+
+            ServerTickBehaviour behaviour =
+                gameObject.AddComponent<
+                    ServerTickBehaviour
+                >();
+
+            behaviour.Initialize(
+                this
+            );
+        }
+
+        private sealed class ServerTickBehaviour :
+            MonoBehaviour
+        {
+            private TimerServerManager _manager;
+
+            public void Initialize(
+                TimerServerManager manager)
+            {
+                _manager =
+                    manager;
+            }
+
+            private void Update()
+            {
+                if (_manager == null)
+                {
+                    return;
+                }
+
+                _manager.Tick();
+            }
+
+            private void OnDestroy()
+            {
+                if (
+                    _manager != null &&
+                    _manager._tickGameObject ==
+                    gameObject
+                )
+                {
+                    _manager._tickGameObject =
+                        null;
                 }
             }
         }
@@ -537,3 +991,5 @@ namespace HKMP.Timer
         }
     }
 }
+
+

@@ -46,7 +46,7 @@ namespace HKMP.Timer
                     new TimerGlobalSettings();
             }
 
-     
+
             if (TimerMod.GlobalSettings.KeyBinds == null)
             {
                 TimerMod.GlobalSettings.KeyBinds =

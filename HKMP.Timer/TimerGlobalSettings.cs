@@ -18,5 +18,7 @@ namespace HKMP.Timer
 
         public float TimerWidth = 360f;
         public float TimerHeight = 100f;
+
+        public bool StopwatchEnabled = false;
     }
 }

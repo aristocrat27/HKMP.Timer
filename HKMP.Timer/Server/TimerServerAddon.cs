@@ -4,9 +4,6 @@ using HkmpTimer;
 
 namespace HKMP.Timer
 {
-    /// <summary>
-    /// Серверная часть HKMP.Timer.
-    /// </summary>
     public sealed class TimerServerAddon : ServerAddon
     {
         public new ILogger Logger => base.Logger;

@@ -30,7 +30,10 @@ namespace HKMP.Timer
         private bool _expired;
 
         private long _remainingMilliseconds;
+        private long _elapsedMilliseconds;
         private long _startServerUtcTicks;
+
+        private bool _stopwatchMode;
 
         private int _durationSeconds;
 
@@ -169,6 +172,7 @@ namespace HKMP.Timer
 
             if (
                 _running &&
+                !_stopwatchMode &&
                 GetRemainingMilliseconds() <= 0
             )
             {
@@ -295,6 +299,9 @@ namespace HKMP.Timer
             _expired =
                 packet.Expired;
 
+            _stopwatchMode =
+                packet.StopwatchMode;
+
             _durationSeconds =
                 Mathf.Max(
                     0,
@@ -305,6 +312,12 @@ namespace HKMP.Timer
                 Math.Max(
                     0L,
                     packet.RemainingMilliseconds
+                );
+
+            _elapsedMilliseconds =
+                Math.Max(
+                    0L,
+                    packet.ElapsedMilliseconds
                 );
 
             _startServerUtcTicks =
@@ -351,7 +364,8 @@ namespace HKMP.Timer
 
         private long GetRemainingMilliseconds()
         {
-            if (!_running)
+            if (!_running ||
+                _stopwatchMode)
             {
                 return Math.Max(
                     0L,
@@ -382,6 +396,39 @@ namespace HKMP.Timer
                 TimeSpan.TicksPerMillisecond;
         }
 
+        private long GetElapsedMilliseconds()
+        {
+            if (!_stopwatchMode)
+            {
+                return 0L;
+            }
+
+            if (!_running)
+            {
+                return Math.Max(
+                    0L,
+                    _elapsedMilliseconds
+                );
+            }
+
+            long serverNowTicks =
+                DateTime.UtcNow.Ticks +
+                _serverClockOffsetTicks;
+
+            long elapsedTicks =
+                serverNowTicks -
+                _startServerUtcTicks;
+
+            if (elapsedTicks <= 0)
+            {
+                return 0L;
+            }
+
+            return
+                elapsedTicks /
+                TimeSpan.TicksPerMillisecond;
+        }
+
         private void OnGUI()
         {
             if (!_windowVisible)
@@ -400,12 +447,15 @@ namespace HKMP.Timer
                 HandleWindowEditor();
             }
 
-            long remaining =
-                GetRemainingMilliseconds();
+            long displayMilliseconds =
+                _stopwatchMode
+                    ? GetElapsedMilliseconds()
+                    : GetRemainingMilliseconds();
 
             if (
                 _running &&
-                remaining <= 0
+                !_stopwatchMode &&
+                displayMilliseconds <= 0
             )
             {
                 _running = false;
@@ -416,21 +466,24 @@ namespace HKMP.Timer
 
                 _expired = true;
 
-                remaining = 0;
+                displayMilliseconds = 0;
             }
 
             string timeText;
 
-            if (_expired)
+            if (
+                !_stopwatchMode &&
+                _expired
+            )
             {
                 timeText =
-                    "ВРЕМЯ ВЫШЛО";
+                    "TIME IS UP";
             }
             else
             {
                 timeText =
                     FormatMilliseconds(
-                        remaining
+                        displayMilliseconds
                     );
             }
 
@@ -470,17 +523,24 @@ namespace HKMP.Timer
 
             string state;
 
-            if (_expired)
+            if (_stopwatchMode)
             {
                 state =
-                    "ВРЕМЯ ВЫШЛО";
+                    _running
+                        ? "STOPWATCH • RUNNING"
+                        : "STOPWATCH • STOPPED";
+            }
+            else if (_expired)
+            {
+                state =
+                    "TIME IS UP";
             }
             else
             {
                 state =
                     _running
-                        ? "ЗАПУЩЕН"
-                        : "ОСТАНОВЛЕН";
+                        ? "TIMER • RUNNING"
+                        : "TIMER • STOPPED";
             }
 
             GUI.Label(
@@ -526,7 +586,7 @@ namespace HKMP.Timer
                     _windowRect.width - 20f,
                     20f
                 ),
-                "РЕЖИМ РЕДАКТИРОВАНИЯ",
+                "EDIT MODE",
                 _editStyle
             );
 

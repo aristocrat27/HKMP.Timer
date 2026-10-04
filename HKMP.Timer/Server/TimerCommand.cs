@@ -93,7 +93,7 @@ namespace HKMP.Timer
             if (args.Length < 3)
             {
                 commandSender.SendMessage(
-                    "Использование: /timer time <секунды>"
+                    "Usage: /timer time <seconds>"
                 );
 
                 return;
@@ -106,7 +106,7 @@ namespace HKMP.Timer
                     out seconds))
             {
                 commandSender.SendMessage(
-                    "Ошибка: время должно быть целым числом секунд."
+                    "Error: time must be a whole number of seconds."
                 );
 
                 return;
@@ -115,7 +115,7 @@ namespace HKMP.Timer
             if (seconds < 0)
             {
                 commandSender.SendMessage(
-                    "Ошибка: время не может быть отрицательным."
+                    "Error: time cannot be negative."
                 );
 
                 return;
@@ -131,7 +131,7 @@ namespace HKMP.Timer
             ICommandSender commandSender)
         {
             commandSender.SendMessage(
-                "Использование: /timer <start|stop|time <секунды>|status>"
+                "Usage: /timer <start|stop|time <seconds>|status>"
             );
         }
     }

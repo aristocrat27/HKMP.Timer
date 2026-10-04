@@ -16,7 +16,12 @@ namespace HkmpTimer
 
         public bool Expired { get; set; }
 
-        public void WriteData(IPacket packet)
+        public bool StopwatchMode { get; set; }
+
+        public long ElapsedMilliseconds { get; set; }
+
+        public void WriteData(
+            IPacket packet)
         {
             packet.Write(Running);
             packet.Write(DurationSeconds);
@@ -24,40 +29,68 @@ namespace HkmpTimer
             packet.Write(RemainingMilliseconds);
             packet.Write(ServerUtcTicks);
             packet.Write(Expired);
+            packet.Write(StopwatchMode);
+            packet.Write(ElapsedMilliseconds);
         }
 
-        public void ReadData(IPacket packet)
+        public void ReadData(
+            IPacket packet)
         {
-            Running = packet.ReadBool();
-            DurationSeconds = packet.ReadInt();
-            StartUtcTicks = packet.ReadLong();
-            RemainingMilliseconds = packet.ReadLong();
-            ServerUtcTicks = packet.ReadLong();
-            Expired = packet.ReadBool();
+            Running =
+                packet.ReadBool();
+
+            DurationSeconds =
+                packet.ReadInt();
+
+            StartUtcTicks =
+                packet.ReadLong();
+
+            RemainingMilliseconds =
+                packet.ReadLong();
+
+            ServerUtcTicks =
+                packet.ReadLong();
+
+            Expired =
+                packet.ReadBool();
+
+            StopwatchMode =
+                packet.ReadBool();
+
+            ElapsedMilliseconds =
+                packet.ReadLong();
         }
 
-        public bool IsReliable => true;
+        public bool IsReliable =>
+            true;
 
-        public bool DropReliableDataIfNewerExists => true;
+        public bool DropReliableDataIfNewerExists =>
+            true;
     }
 
     public sealed class ClockSyncRequestPacket : IPacketData
     {
         public long ClientSendUtcTicks { get; set; }
 
-        public void WriteData(IPacket packet)
+        public void WriteData(
+            IPacket packet)
         {
-            packet.Write(ClientSendUtcTicks);
+            packet.Write(
+                ClientSendUtcTicks);
         }
 
-        public void ReadData(IPacket packet)
+        public void ReadData(
+            IPacket packet)
         {
-            ClientSendUtcTicks = packet.ReadLong();
+            ClientSendUtcTicks =
+                packet.ReadLong();
         }
 
-        public bool IsReliable => true;
+        public bool IsReliable =>
+            true;
 
-        public bool DropReliableDataIfNewerExists => true;
+        public bool DropReliableDataIfNewerExists =>
+            true;
     }
 
     public sealed class ClockSyncResponsePacket : IPacketData
@@ -66,20 +99,30 @@ namespace HkmpTimer
 
         public long ServerUtcTicks { get; set; }
 
-        public void WriteData(IPacket packet)
+        public void WriteData(
+            IPacket packet)
         {
-            packet.Write(ClientSendUtcTicks);
-            packet.Write(ServerUtcTicks);
+            packet.Write(
+                ClientSendUtcTicks);
+
+            packet.Write(
+                ServerUtcTicks);
         }
 
-        public void ReadData(IPacket packet)
+        public void ReadData(
+            IPacket packet)
         {
-            ClientSendUtcTicks = packet.ReadLong();
-            ServerUtcTicks = packet.ReadLong();
+            ClientSendUtcTicks =
+                packet.ReadLong();
+
+            ServerUtcTicks =
+                packet.ReadLong();
         }
 
-        public bool IsReliable => true;
+        public bool IsReliable =>
+            true;
 
-        public bool DropReliableDataIfNewerExists => true;
+        public bool DropReliableDataIfNewerExists =>
+            true;
     }
 }
