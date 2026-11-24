@@ -54,6 +54,15 @@ namespace HKMP.Timer
             }
         }
 
+        public bool IsRunning
+        {
+            get
+            {
+                NormalizeExpired();
+                return _running;
+            }
+        }
+
         public TimerServerManager(
             TimerServerAddon addon,
             IServerApi serverApi)
@@ -95,6 +104,13 @@ namespace HKMP.Timer
             >(
                 TimerServerPacketId.ClockSyncRequest,
                 OnClockSyncRequest
+            );
+
+            _receiver.RegisterPacketHandler<
+                TimerActionRequestPacket
+            >(
+                TimerServerPacketId.TimerActionRequest,
+                OnTimerActionRequest
             );
 
             _serverApi.CommandManager.RegisterCommand(
@@ -184,6 +200,71 @@ namespace HKMP.Timer
                 },
                 playerId
             );
+        }
+
+        private void OnTimerActionRequest(
+            ushort playerId,
+            TimerActionRequestPacket packet)
+        {
+            if (packet == null)
+            {
+                return;
+            }
+
+            IServerPlayer player =
+                _serverApi.ServerManager.GetPlayer(playerId);
+
+            if (player == null)
+            {
+                return;
+            }
+
+            if (packet.Action == TimerActionType.Status)
+            {
+                _serverApi.ServerManager.SendMessage(
+                    playerId,
+                    GetStatusMessage()
+                );
+
+                return;
+            }
+
+            if (!player.IsAuthorized)
+            {
+                return;
+            }
+
+            Action<string> sendMessage =
+                delegate(string message)
+                {
+                    _serverApi.ServerManager.SendMessage(
+                        playerId,
+                        message
+                    );
+                };
+
+            switch (packet.Action)
+            {
+                case TimerActionType.Start:
+                    Start(sendMessage);
+                    break;
+
+                case TimerActionType.Stop:
+                    Stop(sendMessage);
+                    break;
+
+                case TimerActionType.Toggle:
+                    if (IsRunning)
+                    {
+                        Stop(sendMessage);
+                    }
+                    else
+                    {
+                        Start(sendMessage);
+                    }
+
+                    break;
+            }
         }
 
         public void Start(
@@ -307,6 +388,15 @@ namespace HKMP.Timer
             Action<string> sendMessage = null)
         {
             NormalizeExpired();
+
+            if (_roundControlActive)
+            {
+                sendMessage?.Invoke(
+                    "Timer is controlled by HKMP.Rounds during an active round."
+                );
+
+                return;
+            }
 
             if (!_running)
             {
@@ -499,8 +589,19 @@ namespace HKMP.Timer
         public bool StartForRound(
             uint roundId)
         {
-            if (roundId == 0 ||
-                _running)
+            if (roundId == 0)
+            {
+                return false;
+            }
+
+            if (_roundControlActive)
+            {
+                return
+                    _roundControlRoundId == roundId &&
+                    _running;
+            }
+
+            if (_running)
             {
                 return false;
             }
@@ -945,6 +1046,9 @@ namespace HKMP.Timer
             {
                 case TimerServerPacketId.ClockSyncRequest:
                     return new ClockSyncRequestPacket();
+
+                case TimerServerPacketId.TimerActionRequest:
+                    return new TimerActionRequestPacket();
 
                 default:
                     return null;

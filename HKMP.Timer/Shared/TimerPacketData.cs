@@ -125,4 +125,35 @@ namespace HkmpTimer
         public bool DropReliableDataIfNewerExists =>
             true;
     }
+
+    public enum TimerActionType
+    {
+        Start,
+        Stop,
+        Status,
+        Toggle
+    }
+
+    public sealed class TimerActionRequestPacket : IPacketData
+    {
+        public TimerActionType Action { get; set; }
+
+        public void WriteData(
+            IPacket packet)
+        {
+            packet.Write((int)Action);
+        }
+
+        public void ReadData(
+            IPacket packet)
+        {
+            Action = (TimerActionType)packet.ReadInt();
+        }
+
+        public bool IsReliable =>
+            true;
+
+        public bool DropReliableDataIfNewerExists =>
+            true;
+    }
 }

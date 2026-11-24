@@ -188,70 +188,59 @@ namespace HKMP.Timer
 
         private void HandleKeybind()
         {
-            if (TimerInputActions.Timer == null)
+            InControl.PlayerAction timerAction =
+                TimerInputActions.Timer;
+
+            if (timerAction != null)
             {
-                return;
-            }
-
-            if (
-                TimerInputActions.Timer.WasPressed
-            )
-            {
-                _keyHeld = true;
-
-                _longPressTriggered =
-                    false;
-
-                _keyDownTime =
-                    Time.unscaledTime;
-            }
-
-            if (
-                _keyHeld &&
-                TimerInputActions.Timer.IsPressed
-            )
-            {
-                float heldTime =
-                    Time.unscaledTime -
-                    _keyDownTime;
-
-                if (
-                    !_longPressTriggered &&
-                    heldTime >= EditHoldTime
-                )
+                if (timerAction.WasPressed)
                 {
-                    _longPressTriggered =
-                        true;
+                    _keyHeld = true;
+                    _longPressTriggered = false;
+                    _keyDownTime = Time.unscaledTime;
+                }
 
-                    EnterEditMode();
+                if (_keyHeld && timerAction.IsPressed)
+                {
+                    float heldTime =
+                        Time.unscaledTime - _keyDownTime;
+
+                    if (!_longPressTriggered &&
+                        heldTime >= EditHoldTime)
+                    {
+                        _longPressTriggered = true;
+                        EnterEditMode();
+                    }
+                }
+
+                if (_keyHeld && !timerAction.IsPressed)
+                {
+                    bool wasLongPress = _longPressTriggered;
+                    _keyHeld = false;
+                    _longPressTriggered = false;
+
+                    if (wasLongPress)
+                    {
+                        ExitEditMode();
+                        _windowVisible = true;
+                    }
+                    else
+                    {
+                        _windowVisible = !_windowVisible;
+                    }
                 }
             }
 
-            if (
-                _keyHeld &&
-                !TimerInputActions.Timer.IsPressed
-            )
+            if (TimerInputActions.ToggleTimer != null &&
+                TimerInputActions.ToggleTimer.WasPressed)
             {
-                bool wasLongPress =
-                    _longPressTriggered;
+                _addon.RequestTimerAction(TimerActionType.Toggle);
+            }
 
-                _keyHeld = false;
-
-                _longPressTriggered =
-                    false;
-
-                if (wasLongPress)
-                {
-                    ExitEditMode();
-
-                    _windowVisible =
-                        true;
-                }
-                else
-                {
-                    _windowVisible =
-                        !_windowVisible;
-                }
+            if (TimerInputActions.ShowStatus != null &&
+                TimerInputActions.ShowStatus.WasPressed)
+            {
+                _addon.RequestTimerAction(TimerActionType.Status);
             }
         }
 

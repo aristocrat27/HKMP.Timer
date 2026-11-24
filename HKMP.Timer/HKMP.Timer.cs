@@ -1,9 +1,14 @@
 ﻿using Hkmp.Api.Client;
 using Hkmp.Api.Server;
+using HkmpTimer;
+using InControl;
 using Modding;
+using Modding.Menu;
 using Satchel.BetterMenus;
+using Satchel.BetterMenus.Config;
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -20,6 +25,51 @@ namespace HKMP.Timer
 
         private Menu _menu;
 
+        static TimerMod()
+        {
+            AppDomain.CurrentDomain.AssemblyResolve +=
+                ResolveTimerAssembly;
+        }
+
+        private static Assembly ResolveTimerAssembly(
+            object sender,
+            ResolveEventArgs args)
+        {
+            if (args == null ||
+                string.IsNullOrWhiteSpace(args.Name))
+            {
+                return null;
+            }
+
+            try
+            {
+                AssemblyName requestedName =
+                    new AssemblyName(args.Name);
+
+                Assembly timerAssembly =
+                    typeof(TimerMod).Assembly;
+
+                AssemblyName timerAssemblyName =
+                    timerAssembly.GetName();
+
+                if (!string.Equals(
+                        requestedName.Name,
+                        timerAssemblyName.Name,
+                        StringComparison.OrdinalIgnoreCase) ||
+                    (requestedName.Version != null &&
+                     requestedName.Version != timerAssemblyName.Version))
+                {
+                    return null;
+                }
+
+                return timerAssembly;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
         private static Sprite _circleSprite;
 
         public TimerMod()
@@ -30,7 +80,7 @@ namespace HKMP.Timer
 
         public override string GetVersion()
         {
-            return "1.1.0.0";
+            return TimerIdentifier.Version;
         }
 
         public override List<(string, string)> GetPreloadNames()
@@ -110,11 +160,20 @@ namespace HKMP.Timer
                                 "StopwatchMode"
                             ),
 
+                            new StaticPanel(
+                                "TimerKeybindSpacing",
+                                CreateKeybindSpacing
+                            ),
+
                             new KeyBind(
-                                "Timer Key",
+                                "Timer Window",
                                 TimerInputActions.Timer
                             ),
 
+                            new KeyBind(
+                                "Timer Control",
+                                TimerInputActions.ToggleTimer
+                            ),
                             new TextPanel(
                                 "Timer Color",
                                 fontSize: 28
@@ -123,12 +182,6 @@ namespace HKMP.Timer
                             new StaticPanel(
                                 "Palette",
                                 CreateColorPalette
-                            ),
-
-                            new TextPanel(
-                                "To change the position and size " +
-                                "hold the timer key in-game.",
-                                fontSize: 18
                             )
                         }
                     );
@@ -137,6 +190,37 @@ namespace HKMP.Timer
             return _menu.GetMenuScreen(
                 modListMenu
             );
+        }
+
+        private static void CreateKeybindSpacing(
+            GameObject panel)
+        {
+            if (panel == null)
+            {
+                return;
+            }
+
+            RectTransform rectTransform =
+                panel.GetComponent<RectTransform>();
+
+            if (rectTransform == null)
+            {
+                return;
+            }
+
+            rectTransform.SetSizeWithCurrentAnchors(
+                RectTransform.Axis.Vertical,
+                64f);
+
+            LayoutElement layoutElement =
+                panel.GetComponent<LayoutElement>();
+
+            if (layoutElement != null)
+            {
+                layoutElement.minHeight = 64f;
+                layoutElement.preferredHeight = 64f;
+                layoutElement.flexibleHeight = 0f;
+            }
         }
 
         private void SetStopwatchEnabled(

@@ -19,24 +19,19 @@ namespace HKMP.Timer
                         new TimerKeybinds();
                 }
 
+                TimerMod.GlobalSettings.KeyBinds.EnsureActions();
                 return TimerMod.GlobalSettings.KeyBinds;
             }
         }
 
-        public static PlayerAction Timer
-        {
-            get
-            {
-                TimerKeybinds keybinds = Keybinds;
+        public static PlayerAction Timer =>
+            Keybinds?.Timer;
 
-                if (keybinds == null)
-                {
-                    return null;
-                }
+        public static PlayerAction ToggleTimer =>
+            Keybinds?.ToggleTimer;
 
-                return keybinds.Timer;
-            }
-        }
+        public static PlayerAction ShowStatus =>
+            Keybinds?.ShowStatus;
 
         public static void Initialize()
         {
@@ -52,6 +47,8 @@ namespace HKMP.Timer
                 TimerMod.GlobalSettings.KeyBinds =
                     new TimerKeybinds();
             }
+
+            TimerMod.GlobalSettings.KeyBinds.EnsureActions();
         }
     }
 }

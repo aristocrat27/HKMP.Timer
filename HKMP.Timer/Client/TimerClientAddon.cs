@@ -14,7 +14,7 @@ namespace HKMP.Timer
 
         protected override string Name => "HKMP.Timer";
 
-        protected override string Version => "1.1.0.0";
+        protected override string Version => TimerIdentifier.Version;
 
         private IClientAddonNetworkSender<TimerServerPacketId> _sender;
 
@@ -84,6 +84,33 @@ namespace HKMP.Timer
             }
         }
 
+
+        public void RequestTimerAction(
+            TimerActionType action)
+        {
+            if (_sender == null)
+            {
+                return;
+            }
+
+            try
+            {
+                _sender.SendSingleData(
+                    TimerServerPacketId.TimerActionRequest,
+                    new TimerActionRequestPacket
+                    {
+                        Action = action
+                    }
+                );
+            }
+            catch (System.Exception ex)
+            {
+                Logger.Debug(
+                    "Timer action request failed: " +
+                    ex.Message
+                );
+            }
+        }
         private void OnTimerState(
             TimerStatePacket packet
         )

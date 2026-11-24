@@ -2,7 +2,8 @@
 {
     public enum TimerServerPacketId
     {
-        ClockSyncRequest
+        ClockSyncRequest,
+        TimerActionRequest
     }
     public enum TimerClientPacketId
     {
